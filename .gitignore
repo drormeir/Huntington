@@ -1,0 +1,5 @@
+datasets/
+output/
+todo/
+**/__pycache__
+**/*.bak
