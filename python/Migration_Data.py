@@ -81,7 +81,7 @@ class HGPS_Plate_Results:
         catalog_patient_id = [str(id) for id in raw_unique_patient_id]
         catalog_patient_id = ['0'*max(0,4-len(id)) + id for id in catalog_patient_id]
         catalog_patient_id = Patients_Catalog().find_ID(catalog_patient_id, verbose=max(0,verbose-1))
-        catalog_patient_type = Patients_Catalog.df.loc[catalog_patient_id, 'Disease']
+        catalog_patient_type = Patients_Catalog.df.loc[catalog_patient_id, 'Cell_Type']
         catalog_patient_id2type = {id:t for id,t in zip(catalog_patient_id,catalog_patient_type)}
         convert_patient_id_2_catalog = {u:c for u,c in zip(raw_unique_patient_id,catalog_patient_id)}
         col_catalog_patient_id = []

@@ -4,8 +4,7 @@ from python.Patients_Catalog import Patients_Catalog
 
 class Patient_Wells_Collecter:
     def __init__(self) -> None:
-        all_patients_ID = Patients_Catalog(verbose=False).get_ID()
-        self.data = pd.DataFrame(index=pd.Index([], name='Patient_ID')).reindex(all_patients_ID)
+        self.data = Patients_Catalog(verbose=False).df.copy()
         
     def add_experiment(self, experiment_name: str, data: pd.Series|pd.DataFrame, verbose: bool = False) -> None:
         if data.index.name == 'Patient_ID':
@@ -66,6 +65,13 @@ class Patient_Wells_Collecter:
     def display(self) -> None:
         pd_display(self.data)
 
-    def to_csv_file(self, filename) -> None:
-        self.data.to_csv(filename, index=False)
+    def to_csv_file(self, filename: str) -> None:
+        if not filename.endswith('.csv'):
+            filename += '.csv'
+        self.data.to_csv(filename, index=True)
         
+    def to_excel_file(self, filename: str) -> None:
+        if not filename.endswith('.xlsx'):
+            filename += '.xlsx'
+        self.data.to_excel(filename, index=True)
+
