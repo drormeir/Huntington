@@ -75,3 +75,12 @@ class Patient_Wells_Collecter:
             filename += '.xlsx'
         self.data.to_excel(filename, index=True)
 
+    def to_markdown_file(self, filename: str) -> None:
+        if not filename.endswith('.md'):
+            filename += '.md'
+
+        markdown_table = self.data.to_markdown(index=True)
+
+        with open(filename, 'w') as f:
+            f.write(markdown_table)
+
