@@ -19,17 +19,25 @@ class Patients_Catalog:
     def get_ID(self) -> list[str]:
         return list(Patients_Catalog.df.index)
 
-    def find_any_ID(self, id_options: list[str]) -> str|None:
+    def get_CAP(self, id: str) -> float:
+        cell_type = Patients_Catalog.df.loc[id, 'Cell_Type'].upper()
+        if cell_type == 'HC':
+            return 0.0
+        if cell_type == 'HGPS':
+            return 999.0
+        return Patients_Catalog.df.loc[id, 'CAP_Score']
+    
+    def find_any_ID(self, id_options: list[str], verbose: int = 0, original_ID: str|None = None) -> str|None:
         ret = None
         for id in id_options:
             try:
-                ret = self.find_ID(id)
+                ret = self.find_ID(id, verbose=verbose, original_ID=original_ID)
                 break
             except ValueError as e:
                 pass
         return ret
 
-    def find_ID(self, id: pd.Index|pd.Series|str|list[str]|pd.arrays.IntegerArray, verbose: int = 0) -> str|list[str]:
+    def find_ID(self, id: pd.Index|pd.Series|str|list[str]|pd.arrays.IntegerArray, verbose: int = 0, original_ID: str|None = None) -> str|list[str]:
         if isinstance(id, (list, pd.Series, pd.Index, pd.arrays.IntegerArray)):
             id_elements = list(set(list(id)))
             assert not isinstance(id_elements[0], (list,tuple)), f'Original ID to find: {id}'
@@ -37,7 +45,7 @@ class Patients_Catalog:
             failed_id = []
             for id_element in id_elements:
                 try:
-                    mapping[id_element] = self.find_ID(id_element, verbose=verbose)
+                    mapping[id_element] = self.find_ID(id_element, verbose=verbose, original_ID=None)
                 except ValueError as e:
                     failed_id.append(id_element)
             if failed_id:
@@ -57,7 +65,16 @@ class Patients_Catalog:
             return [mapping[id_element] for id_element in id]
         original_type = type(id)
         id = str(id).replace('\'','').replace(' ','').replace('-','')
+        if not original_ID or original_ID == id:
+            str_id = f'{id=}'
+        else:
+            str_id = f'{original_ID=} --> {id=}'
         if id in Patients_Catalog.df.index:
+            if verbose:
+                if original_ID and original_ID != id:
+                    print(f'Patients_Catalog: match {str_id}')
+                else:
+                    print(f'Patients_Catalog: extact match {str_id}')
             return id
         def count_positive_digits_at_end(s):
             any_digits = 0
@@ -88,20 +105,31 @@ class Patients_Catalog:
         for id_letters in set([id, id[count_leading_letters(id):]]):
             for trim in range(0,digits_to_trim+1):
                 id_2_check = id_letters[:len(id_letters)-trim]
-                for ind in Patients_Catalog.df.index:
+                # first check if "id" is inside any of the original catalog_id
+                for catalog_id in Patients_Catalog.df.index:
                     if verbose > 1:
-                        print(f'Check if {id=} --> {id_2_check=} in {ind=}')
-                    id_list = [ind]
-                    num_letters = count_leading_letters(ind)
+                        print(f'Check if {str_id} --> {id_2_check=} in {catalog_id=}')
+                    if id_2_check in catalog_id:
+                        if verbose:
+                            assert original_ID != catalog_id
+                            print(f'Patients_Catalog: match {str_id} --> {catalog_id}')
+                        return catalog_id
+                # only later!!! check if "id" is inside any of modifications of catalog_id
+                for catalog_id in Patients_Catalog.df.index:
+                    if verbose > 1:
+                        print(f'Check if {str_id=} --> {id_2_check=} in {catalog_id=}')
+                    catalog_id_list = []
+                    num_letters = count_leading_letters(catalog_id)
                     if num_letters:
-                        id_list.append(ind[:num_letters] + '0' + ind[num_letters:])
-                        if ind[num_letters] == '0':
-                            id_list.append(ind[:num_letters] + ind[num_letters+1:])
-                    for catalog_id_2_check in id_list:
+                        catalog_id_list.append(catalog_id[:num_letters] + '0' + catalog_id[num_letters:])
+                        if catalog_id[num_letters] == '0':
+                            catalog_id_list.append(catalog_id[:num_letters] + catalog_id[num_letters+1:])
+                    for catalog_id_2_check in catalog_id_list:
                         if id_2_check in catalog_id_2_check:
                             if verbose:
-                                print(f'Patients_Catalog: match {id} --> {ind}')
-                            return ind
+                                assert id != catalog_id
+                                print(f'Patients_Catalog: match {str_id} --> {catalog_id}')
+                            return catalog_id
             
         # try removing prefix NA and add postfix 'C'
         def try_remove_prefix_NA(id: str):
