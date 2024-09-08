@@ -1,15 +1,18 @@
 import os
 import pandas as pd
 from python.csv_pd import pd_display, csv_raw_data, csv_header_body_2_dataframe
+import warnings
 
 class Patients_Catalog:
     df = None
     
-    def __init__(self, file_name=None, verbose: int = 0) -> None:
+    def __init__(self, file_name=None, verbose: int = 0, class_print_read_data: bool = False) -> None:
         if Patients_Catalog.df is not None:
             return
         if file_name is None:
             file_name=os.path.join('python','resources', 'Patients_Catalog.csv')
+        if verbose or class_print_read_data:
+            print(f'Reading Patients Catalog from: {file_name=}', flush=True)
         csv_data = csv_raw_data(file_name, verbose=verbose>1)
         Patients_Catalog.df = csv_header_body_2_dataframe(csv_data[0], csv_data[1:], verbose=verbose>1).set_index('Patient_ID')
         if verbose:
@@ -27,6 +30,9 @@ class Patients_Catalog:
             return 999.0
         return Patients_Catalog.df.loc[id, 'CAP_Score']
     
+    def get_Age(self, id: str) -> float:
+        return Patients_Catalog.df.loc[id, 'Age']
+
     def find_any_ID(self, id_options: list[str], verbose: int = 0, original_ID: str|None = None) -> str|None:
         ret = None
         for id in id_options:
@@ -37,6 +43,10 @@ class Patients_Catalog:
                 pass
         return ret
 
+    def all_ID_correct(self, ids: list[str]) -> bool:
+        my_IDs = self.get_ID()
+        return all(id in my_IDs for id in ids)
+    
     def find_ID(self, id: pd.Index|pd.Series|str|list[str]|pd.arrays.IntegerArray, verbose: int = 0, original_ID: str|None = None) -> str|list[str]:
         if isinstance(id, (list, pd.Series, pd.Index, pd.arrays.IntegerArray)):
             id_elements = list(set(list(id)))
@@ -61,8 +71,8 @@ class Patients_Catalog:
                         f'{len(failed_id)} data ID: {failed_id}\n'+\
                         f'All possible candidates are: {self.get_ID()}'
                 raise ValueError(str_error)
-
             return [mapping[id_element] for id_element in id]
+        
         original_type = type(id)
         id = str(id).replace('\'','').replace(' ','').replace('-','')
         if not original_ID or original_ID == id:
@@ -70,12 +80,19 @@ class Patients_Catalog:
         else:
             str_id = f'{original_ID=} --> {id=}'
         if id in Patients_Catalog.df.index:
-            if verbose:
+            str_warn = f'  Zero age!' if self.get_Age(id=id) < 1e-6 else ''
+            if verbose or str_warn:
                 if original_ID and original_ID != id:
-                    print(f'Patients_Catalog: match {str_id}')
+                    str_verbose = 'Patients_Catalog: match '
                 else:
-                    print(f'Patients_Catalog: extact match {str_id}')
+                    str_verbose = 'Patients_Catalog: extact match '
+                str_out = str_verbose + str_id + str_warn
+                if verbose:
+                    print(str_out)
+                else:
+                    warnings.warn(str_out)
             return id
+        
         def count_positive_digits_at_end(s):
             any_digits = 0
             found_zero = False
@@ -90,6 +107,7 @@ class Patients_Catalog:
                     else:
                         count_positive += 1
             return count_positive if any_digits else 0
+        
         def count_leading_letters(s):
             count = 0
             for char in s:
@@ -98,6 +116,7 @@ class Patients_Catalog:
                 else:
                     break
             return count
+        
         if count_positive_digits_at_end(id[:-2]):
             digits_to_trim = 2
         else:
@@ -110,9 +129,14 @@ class Patients_Catalog:
                     if verbose > 1:
                         print(f'Check if {str_id} --> {id_2_check=} in {catalog_id=}')
                     if id_2_check in catalog_id:
-                        if verbose:
+                        str_warn = f'  Zero age!' if self.get_Age(id=catalog_id) < 1e-6 else ''
+                        if verbose or str_warn:
                             assert original_ID != catalog_id
-                            print(f'Patients_Catalog: match {str_id} --> {catalog_id}')
+                            str_out = f'Patients_Catalog: match {str_id} --> {catalog_id}' + str_warn
+                            if verbose:
+                                print(str_out)
+                            else:
+                                warnings.warn(str_out)
                         return catalog_id
                 # only later!!! check if "id" is inside any of modifications of catalog_id
                 for catalog_id in Patients_Catalog.df.index:
@@ -126,9 +150,14 @@ class Patients_Catalog:
                             catalog_id_list.append(catalog_id[:num_letters] + catalog_id[num_letters+1:])
                     for catalog_id_2_check in catalog_id_list:
                         if id_2_check in catalog_id_2_check:
-                            if verbose:
+                            str_warn = f'  Zero age!' if self.get_Age(id=catalog_id) < 1e-6 else ''
+                            if verbose or str_warn:
                                 assert id != catalog_id
-                                print(f'Patients_Catalog: match {str_id} --> {catalog_id}')
+                                str_out = f'Patients_Catalog: match {str_id} --> {catalog_id}' + str_warn
+                                if verbose:
+                                    print(str_out)
+                                else:
+                                    warnings.warn(str_out)
                             return catalog_id
             
         # try removing prefix NA and add postfix 'C'

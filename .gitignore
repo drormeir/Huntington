@@ -2,3 +2,4 @@ datasets/
 todo/
 **/__pycache__
 **/*.bak
+**/~$*.xlsx

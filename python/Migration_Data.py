@@ -3,11 +3,12 @@ import re
 import os
 from python.csv_pd import pd_display, csv_raw_data, csv_header_body_2_dataframe
 from python.Patients_Catalog import Patients_Catalog
+import warnings
 
 class Migration_Data:
-    def __init__(self, file_name, verbose: int = 0) -> None:
+    def __init__(self, file_name, verbose: int = 0, class_print_read_data: bool = False) -> None:
         assert os.path.isfile(file_name), f'Migration_Data: File does not exists: {file_name}'
-        if verbose:
+        if verbose or class_print_read_data:
             print(f'Reading Migration_Data: {file_name}')
         csv_data = csv_raw_data(file_name, verbose=max(0,verbose-2))
         self.df = csv_header_body_2_dataframe(csv_data[0], csv_data[1:], verbose=max(0,verbose-2))
@@ -32,7 +33,7 @@ class Migration_Data:
                 catalog_cap = patients_catalog.get_CAP(patient_id)
                 migration_cap = float(cap_patient.split('\'')[0])
                 if abs(migration_cap - catalog_cap) >= 1:
-                    print(f'WARNING! {cap_patient=} --> {patient_id=}  -> {catalog_cap=}')
+                    warnings.warn(f'{cap_patient=} --> {patient_id=}  -> {catalog_cap=}')
             cap_patient_2_true_id[cap_patient] = patient_id
             patients_wells_count[patient_id] = cap_patient_column2[cap_patient_column==cap_patient].nunique()
             pass
@@ -68,9 +69,9 @@ class Migration_Data:
     
 
 class HGPS_Plate_Results:
-    def __init__(self, file_name: str, verbose: int = 0) -> None:
+    def __init__(self, file_name: str, verbose: int = 0, class_print_read_data: bool = False) -> None:
         assert os.path.isfile(file_name), f'HGPS_Plate_Results: File does not exists: {file_name}'
-        if verbose:
+        if verbose or class_print_read_data:
             print(f'Reading HGPS_Plate_Results: {file_name}')
         csv_data = csv_raw_data(file_name, verbose=max(0,verbose-2))
         self.df = csv_header_body_2_dataframe(csv_data[0], csv_data[1:], verbose=max(0,verbose-2)).drop('CAP', axis=1)
@@ -96,9 +97,9 @@ class HGPS_Plate_Results:
             pd_display(self.patients_wells_count)
 
 class HGPS_Data_APRW:
-    def __init__(self, file_name: str, verbose: int = 0) -> None:
+    def __init__(self, file_name: str, verbose: int = 0, class_print_read_data: bool = False) -> None:
         assert os.path.isfile(file_name), f'HGPS_Data_APRW: File does not exists: {file_name}'
-        if verbose:
+        if verbose or class_print_read_data:
             print(f'Reading HGPS_Data_APRW: {file_name}')
         csv_data = csv_raw_data(file_name, verbose=max(0,verbose-2))
         self.df = csv_header_body_2_dataframe(csv_data[0], csv_data[1:], verbose=max(0,verbose-2)).drop('CAP', axis=1)
@@ -123,9 +124,9 @@ class HGPS_Data_APRW:
 
 
 class LatB_LowHigh_MitoQ_APRW:
-    def __init__(self, file_name: str, verbose: int = 0) -> None:
+    def __init__(self, file_name: str, verbose: int = 0, class_print_read_data: bool = False) -> None:
         assert os.path.isfile(file_name), f'LatB_LowHigh_MitoQ_APRW: File does not exists: {file_name}'
-        if verbose:
+        if verbose or class_print_read_data:
             print(f'Reading LatB_LowHigh_MitoQ_APRW: {file_name}')
         csv_data = csv_raw_data(file_name, verbose=max(0,verbose-2))
         self.df = csv_header_body_2_dataframe(csv_data[0], csv_data[1:], verbose=max(0,verbose-2)).drop('CAP', axis=1)

@@ -136,7 +136,7 @@ def csv_header_body_2_dataframe(header: list[str], body: list[list[str]],\
                 seen.add(col)
                 ind_unique.append(ind)
         str_file = f'For file: "{file_name}" ' if file_name else ''
-        print(f'WARNING! {str_file}There are {len(duplicates)} duplicate columns to be removed:\n{duplicates}')
+        warnings.warn(f'{str_file}There are {len(duplicates)} duplicate columns to be removed:\n{duplicates}')
         header = [header[ind_col] for ind_col in ind_unique]
         new_body = []
         for row in body:

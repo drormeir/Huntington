@@ -3,10 +3,10 @@ from python.csv_pd import pd_display
 from python.Patients_Catalog import Patients_Catalog
 
 class Patient_Wells_Collecter:
-    def __init__(self) -> None:
-        self.data = Patients_Catalog(verbose=False).df.copy()
+    def __init__(self, class_print_read_data: bool = False) -> None:
+        self.data = Patients_Catalog(verbose=False, class_print_read_data=class_print_read_data).df.copy()
         
-    def add_experiment(self, experiment_name: str, data: pd.Series|pd.DataFrame, verbose: bool = False) -> None:
+    def add_experiment(self, experiment_name: str, data: pd.Series|pd.DataFrame, verbose: int = 0) -> None:
         if data.index.name == 'Patient_ID':
             # input data is ready
             pass
@@ -19,7 +19,9 @@ class Patient_Wells_Collecter:
             data.name = 'Num_Wells'
         else:
             assert False, 'Invalid data type for add_experiment()'
-        experiment_patients = Patients_Catalog(verbose=False).find_ID(data.index)
+        experiment_patients = list(data.index)
+        if not Patients_Catalog().all_ID_correct(experiment_patients):
+            experiment_patients = Patients_Catalog(verbose=max(verbose-2,0)).find_ID(experiment_patients, verbose=max(verbose-1,0))
         # adding None rows for new patients
         new_patients = [patient_id for patient_id in experiment_patients if patient_id not in self.data.index]
         if new_patients:
@@ -63,24 +65,39 @@ class Patient_Wells_Collecter:
                 raise ValueError(new_error)
         
     def display(self) -> None:
-        pd_display(self.data)
+        pd_display(self.__data2export())
 
     def to_csv_file(self, filename: str) -> None:
         if not filename.endswith('.csv'):
             filename += '.csv'
-        self.data.to_csv(filename, index=True)
+        self.__data2export().to_csv(filename, index=True)
         
     def to_excel_file(self, filename: str) -> None:
         if not filename.endswith('.xlsx'):
             filename += '.xlsx'
-        self.data.to_excel(filename, index=True)
+        self.__data2export().to_excel(filename, index=True)
 
     def to_markdown_file(self, filename: str) -> None:
         if not filename.endswith('.md'):
             filename += '.md'
 
-        markdown_table = self.data.to_markdown(index=True)
+        markdown_table = self.__data2export().to_markdown(index=True)
 
         with open(filename, 'w') as f:
             f.write(markdown_table)
+    
+    def __data2export(self, verbose: bool = False) -> pd.DataFrame:
+        df_copy = self.data.copy()
+        if verbose:
+            print("Original dtypes:\n", df_copy.dtypes)  # Debug: print original data types
 
+        for column in df_copy.columns:
+            if pd.api.types.is_integer_dtype(df_copy[column]) and df_copy[column].isna().any():
+                if verbose:
+                    print(f"Processing column: {column}")  # Debug: identify which columns are processed
+                df_copy[column] = df_copy[column].apply(lambda x: '<NA>' if pd.isna(x) else str(int(x))).astype(str)
+                if verbose:
+                    print(f"Updated {column} with '<NA>' replacements")  # Debug: confirm replacements
+        if verbose:
+            print("Modified DataFrame:\n", df_copy.head())  # Debug: preview modified DataFrame
+        return df_copy
