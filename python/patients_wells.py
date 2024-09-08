@@ -86,18 +86,9 @@ class Patient_Wells_Collecter:
         with open(filename, 'w') as f:
             f.write(markdown_table)
     
-    def __data2export(self, verbose: bool = False) -> pd.DataFrame:
+    def __data2export(self) -> pd.DataFrame:
         df_copy = self.data.copy()
-        if verbose:
-            print("Original dtypes:\n", df_copy.dtypes)  # Debug: print original data types
-
         for column in df_copy.columns:
             if pd.api.types.is_integer_dtype(df_copy[column]) and df_copy[column].isna().any():
-                if verbose:
-                    print(f"Processing column: {column}")  # Debug: identify which columns are processed
-                df_copy[column] = df_copy[column].apply(lambda x: '<NA>' if pd.isna(x) else str(int(x))).astype(str)
-                if verbose:
-                    print(f"Updated {column} with '<NA>' replacements")  # Debug: confirm replacements
-        if verbose:
-            print("Modified DataFrame:\n", df_copy.head())  # Debug: preview modified DataFrame
+                df_copy[column] = df_copy[column].apply(lambda x: 'NA' if pd.isna(x) else str(int(x))).astype(str)
         return df_copy
