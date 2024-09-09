@@ -171,3 +171,13 @@ def extract_integer_from_string_end(s: str):
         return int(match.group())
     else:
         return None
+
+def unique_list(data: list[str]) -> list[str]:
+    unique_data = set()
+    ret = []
+    for x in data:
+        if x in unique_data:
+            continue
+        ret.append(x)
+        unique_data.add(x)
+    return ret

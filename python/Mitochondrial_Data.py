@@ -41,17 +41,26 @@ class Morphology_Data:
     
     @staticmethod
     def group_with_id_2_patient_id(column_group_with_id, verbose: int = 0) -> list[str]:
-        fast_mapping = {}
-        possible_groups = ['hc', 'mild', 'severe', 'premanifest']
-        patients_id = []
+        column_group_with_id = list(column_group_with_id)
+        patients_catalog = Patients_Catalog(verbose=max(0,verbose-1))
+        raw_data_2_raw_patient_id = {}
+        raw_patient_id_2_catalog_id = {}
+        raw_patients_id = []
+        for group_with_id in set(column_group_with_id):
+            low_str = group_with_id.lower().replace('hc','').replace('mild','').replace('severe','').replace('premanifest','')
+            assert isinstance(group_with_id, str)
+            raw_patient_id = group_with_id[-len(low_str):]
+            assert isinstance(raw_patient_id, str)
+            raw_data_2_raw_patient_id[group_with_id] = raw_patient_id
+            id_2_check = [raw_patient_id, raw_patient_id.replace('0663', '0633')]
+            catalog_id = patients_catalog.find_typo_ID(id_2_check)
+            raw_patient_id_2_catalog_id[raw_patient_id] = catalog_id
+        patients_ids = []
         for group_with_id in column_group_with_id:
-            if group_with_id not in fast_mapping:
-                low_str = group_with_id.lower()
-                new_patients_id = [group_with_id[len(group_id):] for group_id in possible_groups if low_str.startswith(group_id)]
-                assert len(new_patients_id) == 1
-                fast_mapping[group_with_id] = new_patients_id[0]
-            patients_id.append(fast_mapping[group_with_id])
-        return Patients_Catalog(verbose=max(0,verbose-1)).find_ID(patients_id, verbose=verbose)
+            raw_patient_id = raw_data_2_raw_patient_id[group_with_id]
+            catalog_id = raw_patient_id_2_catalog_id[raw_patient_id]
+            patients_ids.append(catalog_id)
+        return patients_ids
 
 class All_Mitochondrial_Data:
     def __init__(self, morphology_file_name: str, protain_file_names: list[str], verbose: int = 0, class_print_read_data: bool = False) -> None:
