@@ -23,26 +23,26 @@ class Patients_Catalog:
         return list(Patients_Catalog.df.index)
 
     def get_CAP(self, id: str) -> float:
-        cell_type = Patients_Catalog.df.loc[id, 'Cell_Type'].upper()
-        if cell_type == 'HC':
+        disease_status = Patients_Catalog.df.loc[id, 'Disease_Status'].upper()
+        if disease_status == 'HC':
             return 0.0
-        if cell_type == 'HGPS':
+        if disease_status == 'HGPS':
             return 999.0
         return Patients_Catalog.df.loc[id, 'CAP_Score']
     
     def get_Age(self, id: str) -> float:
         return Patients_Catalog.df.loc[id, 'Age']
 
-    def find_typo_ID(self, id_options: list[str], verbose: int = 0, original_ID: str|None = None, patient_type: str|None = None) -> str|None:
+    def find_typo_ID(self, id_options: list[str], verbose: int = 0, original_ID: str|None = None, disease_status: str|None = None) -> str|None:
         assert id_options
         id_options = unique_list(id_options)
         if len(id_options) < 2:
-            return self.find_ID(id_options[0], verbose=verbose, original_ID=original_ID, patient_type=patient_type)
+            return self.find_ID(id_options[0], verbose=verbose, original_ID=original_ID, disease_status=disease_status)
         ret_id = None
         selected_id = None
         for id in id_options:
             try:
-                ret_id = self.find_ID(id, verbose=verbose, original_ID=original_ID, patient_type=patient_type)
+                ret_id = self.find_ID(id, verbose=verbose, original_ID=original_ID, disease_status=disease_status)
                 if ret_id:
                     selected_id = id
                     break
@@ -60,7 +60,7 @@ class Patients_Catalog:
         my_IDs = self.get_ID()
         return all(id in my_IDs for id in ids)
     
-    def find_ID(self, id: pd.Index|pd.Series|str|list[str]|pd.arrays.IntegerArray, verbose: int = 0, original_ID: str|None = None, patient_type: str|None = None) -> str|list[str]:
+    def find_ID(self, id: pd.Index|pd.Series|str|list[str]|pd.arrays.IntegerArray, verbose: int = 0, original_ID: str|None = None, disease_status: str|None = None) -> str|list[str]:
         if isinstance(id, (list, pd.Series, pd.Index, pd.arrays.IntegerArray)):
             id_elements = unique_list(list(id))
             assert not isinstance(id_elements[0], (list,tuple)), f'Original ID to find: {id}'
@@ -68,7 +68,7 @@ class Patients_Catalog:
             failed_id = []
             for id_element in id_elements:
                 try:
-                    mapping[id_element] = self.find_ID(id_element, verbose=verbose, original_ID=None, patient_type=patient_type)
+                    mapping[id_element] = self.find_ID(id_element, verbose=verbose, original_ID=None, disease_status=disease_status)
                 except ValueError as e:
                     failed_id.append(id_element)
             if failed_id:
@@ -126,20 +126,20 @@ class Patients_Catalog:
                     break
             return count
         
-        all_catalog_ids = Patients_Catalog.df.index.tolist()        
-        if patient_type:
-            all_catalog_ids = [(catalog_id,catalog_id) for catalog_id,cell_type in zip(all_catalog_ids,Patients_Catalog.df['Cell_Type']) if patient_type in cell_type]
+        if disease_status:
+            mask = [disease_status in status for status in Patients_Catalog.df['Disease_Status']]
+            mask = pd.Series(mask, index=Patients_Catalog.df.index)
+            all_catalog_ids = Patients_Catalog.df.index[mask]
         else:
-            all_catalog_ids = list(zip(all_catalog_ids,all_catalog_ids))
-        all_catalog_ids_add_zero = []
-        all_catalog_ids_minus_zero = []
-        for (catalog_id,_) in all_catalog_ids:
+            all_catalog_ids = Patients_Catalog.df.index
+        modified_catalog_ids = []
+        for catalog_id in all_catalog_ids:
             num_letters = count_leading_letters(catalog_id)
             if num_letters < len(catalog_id):
-                all_catalog_ids_add_zero.append((catalog_id[:num_letters] + '0' + catalog_id[num_letters:],catalog_id))
+                modified_catalog_ids.append((catalog_id[:num_letters] + '0' + catalog_id[num_letters:],catalog_id))
                 if catalog_id[num_letters] == '0':
-                    all_catalog_ids_minus_zero.append((catalog_id[:num_letters] + catalog_id[num_letters+1:],catalog_id))
-        all_catalog_ids += all_catalog_ids_add_zero + all_catalog_ids_minus_zero
+                    modified_catalog_ids.append((catalog_id[:num_letters] + catalog_id[num_letters+1:],catalog_id))
+        all_catalog_ids = list(zip(all_catalog_ids,all_catalog_ids)) + modified_catalog_ids
         for id_2_check in ids_trim_passage:
             # first check if "id" is inside any of the original catalog_id
             for modified_catalog_id,original_catalog_id in all_catalog_ids:

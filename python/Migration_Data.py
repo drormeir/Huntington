@@ -88,15 +88,15 @@ class HGPS_Plate_Results:
 
         csv_data = csv_raw_data(file_name, verbose=max(0,verbose-2))
         self.df = csv_header_body_2_dataframe(csv_data[0], csv_data[1:], verbose=max(0,verbose-2)).drop('CAP', axis=1)
-        col_patient_type = self.df.pop('Cell_Type').reset_index(drop=True)
+        col_disease_status = self.df.pop('Cell_Type').reset_index(drop=True)
         col_patient_id = self.df.pop('Cell_ID').reset_index(drop=True).astype(str)
         raw_data_2_catalog_id = {}
         col_catalog_patient_id = []
-        for raw_patient_id, patient_type in zip(col_patient_id,col_patient_type):
-            patient_id_type = raw_patient_id + '_' + patient_type
+        for raw_patient_id, disease_status in zip(col_patient_id,col_disease_status):
+            patient_id_type = raw_patient_id + '_' + disease_status
             if patient_id_type not in raw_data_2_catalog_id:
                 test_id_fix = Migration_Data.try_different_id(raw_patient_id)
-                catalog_id = patients_catalog.find_typo_ID(test_id_fix, verbose=max(0,verbose-1), original_ID=raw_patient_id, patient_type=patient_type)
+                catalog_id = patients_catalog.find_typo_ID(test_id_fix, verbose=max(0,verbose-1), original_ID=raw_patient_id, disease_status=disease_status)
                 raw_data_2_catalog_id[patient_id_type] = catalog_id
             else:
                 catalog_id = raw_data_2_catalog_id[patient_id_type]
