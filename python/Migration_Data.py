@@ -12,7 +12,11 @@ class Migration_Data:
         id0_2_check = unique_list([id0, id0.replace('NA', 'GM'), id0.replace('NA', 'AG')])
         assert id0_2_check[0] == id0
         for id in id0_2_check:
-            test_id_fix += [id, id.replace('4484', '484').replace('5687', '4687').replace('46146', '16146').replace('0016','1016')]
+            test_id_fix += [id, id.replace('4484', '484').replace('5687', '4687').replace('46146', '16146').replace('0170','1170')]
+        if id0 in ['16', 'NA0016']:
+            test_id_fix.append('CM16')
+        elif id0 == '13':
+            test_id_fix.append('HGADFN014313')
         return unique_list(test_id_fix)
 
     def __init__(self, file_name, verbose: int = 0, class_print_read_data: bool = False) -> None:
@@ -84,24 +88,20 @@ class HGPS_Plate_Results:
 
         csv_data = csv_raw_data(file_name, verbose=max(0,verbose-2))
         self.df = csv_header_body_2_dataframe(csv_data[0], csv_data[1:], verbose=max(0,verbose-2)).drop('CAP', axis=1)
-        patient_type = self.df.pop('Cell_Type').reset_index(drop=True)
-        col_patient_id = self.df.pop('Cell_ID').reset_index(drop=True)
-        raw_unique_patient_id = col_patient_id.unique().tolist()
-        catalog_patient_id = []
-        for raw_id in raw_unique_patient_id:
-            raw_id = str(raw_id)
-            test_id_fix = Migration_Data.try_different_id('0'*max(0,4-len(raw_id)) + raw_id)
-            patient_id = patients_catalog.find_typo_ID(test_id_fix, verbose=max(0,verbose-1), original_ID=raw_id)
-            catalog_patient_id.append(patient_id)
-        catalog_patient_type = Patients_Catalog.df.loc[catalog_patient_id, 'Cell_Type']
-        catalog_patient_id2type = dict(zip(catalog_patient_id,catalog_patient_type))
-        convert_patient_id_2_catalog = dict(zip(raw_unique_patient_id,catalog_patient_id))
+        col_patient_type = self.df.pop('Cell_Type').reset_index(drop=True)
+        col_patient_id = self.df.pop('Cell_ID').reset_index(drop=True).astype(str)
+        raw_data_2_catalog_id = {}
         col_catalog_patient_id = []
-        for row_patient_id, row_patient_type in zip(col_patient_id,patient_type):
-            catalog_row_patient_id = convert_patient_id_2_catalog[row_patient_id]
-            catalog_row_patient_type = catalog_patient_id2type[catalog_row_patient_id]
-            assert row_patient_type == catalog_row_patient_type
-            col_catalog_patient_id.append(catalog_row_patient_id)
+        for raw_patient_id, patient_type in zip(col_patient_id,col_patient_type):
+            patient_id_type = raw_patient_id + '_' + patient_type
+            if patient_id_type not in raw_data_2_catalog_id:
+                test_id_fix = Migration_Data.try_different_id(raw_patient_id)
+                catalog_id = patients_catalog.find_typo_ID(test_id_fix, verbose=max(0,verbose-1), original_ID=raw_patient_id, patient_type=patient_type)
+                raw_data_2_catalog_id[patient_id_type] = catalog_id
+            else:
+                catalog_id = raw_data_2_catalog_id[patient_id_type]
+            col_catalog_patient_id.append(catalog_id)
+
         new_df = pd.DataFrame({'Patient_ID':col_catalog_patient_id})
         self.df = pd.concat([self.df.reset_index(drop=True), new_df.reset_index(drop=True)], axis=1)
         self.patients_wells_count = new_df['Patient_ID'].value_counts().rename('Num_Wells')

@@ -5,7 +5,9 @@ from python.Patients_Catalog import Patients_Catalog
 class Patient_Wells_Collecter:
     def __init__(self, class_print_read_data: bool = False) -> None:
         self.data = Patients_Catalog(verbose=False, class_print_read_data=class_print_read_data).df.copy()
-        
+        count_col = pd.Series([0] * len(self.data), index=self.data.index, dtype=int)
+        self.data['Count_Experiments'] = count_col
+
     def add_experiment(self, experiment_name: str, data: pd.Series|pd.DataFrame, verbose: int = 0) -> None:
         if data.index.name == 'Patient_ID':
             # input data is ready
@@ -32,7 +34,8 @@ class Patient_Wells_Collecter:
                 assert self.data.index.name == 'Patient_ID'
             else:
                 new_data = [[pd.NA] * len(self.data.columns)]* len(new_patients)
-                new_patients = pd.DataFrame(index=new_patients, columns=self.data.columns, data=new_data, dtype=pd.Int64Dtype())
+                new_patients = pd.DataFrame(index=new_patients, columns=self.data.columns, data=new_data, dtype=pd.Int32Dtype())
+                print(f'{new_patients.dtypes=}')
                 new_patients.index.name = 'Patient_ID'
                 self.data = pd.concat([self.data, new_patients])
                 assert self.data.index.name == 'Patient_ID'
@@ -48,7 +51,7 @@ class Patient_Wells_Collecter:
         for col_name, col_data in zip(experiment_columns_names,experiment_columns_data):
             # adding column of None for a new experiment
             if col_name not in self.data.columns:
-                self.data[col_name] = pd.Series([pd.NA] * len(self.data), dtype=pd.Int64Dtype())            
+                self.data[col_name] = pd.Series([pd.NA] * len(self.data), dtype=pd.Int32Dtype())
             # copy experiment data
             try:
                 self.data.loc[experiment_patients, col_name] = col_data
@@ -63,7 +66,8 @@ class Patient_Wells_Collecter:
                 new_error += f'experiment_patients={experiment_patients}\n'
                 new_error += f'col_data={col_data}'
                 raise ValueError(new_error)
-        
+        self.data.loc[experiment_patients,'Count_Experiments'] += len(experiment_columns_data)
+
     def display(self) -> None:
         pd_display(self.__data2export())
 

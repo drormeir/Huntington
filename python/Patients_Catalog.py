@@ -33,15 +33,16 @@ class Patients_Catalog:
     def get_Age(self, id: str) -> float:
         return Patients_Catalog.df.loc[id, 'Age']
 
-    def find_typo_ID(self, id_options: list[str], verbose: int = 0, original_ID: str|None = None) -> str|None:
+    def find_typo_ID(self, id_options: list[str], verbose: int = 0, original_ID: str|None = None, patient_type: str|None = None) -> str|None:
+        assert id_options
         id_options = unique_list(id_options)
         if len(id_options) < 2:
-            return self.find_ID(id_options[0], verbose=verbose, original_ID=original_ID)
+            return self.find_ID(id_options[0], verbose=verbose, original_ID=original_ID, patient_type=patient_type)
         ret_id = None
         selected_id = None
         for id in id_options:
             try:
-                ret_id = self.find_ID(id, verbose=verbose, original_ID=original_ID)
+                ret_id = self.find_ID(id, verbose=verbose, original_ID=original_ID, patient_type=patient_type)
                 if ret_id:
                     selected_id = id
                     break
@@ -59,7 +60,7 @@ class Patients_Catalog:
         my_IDs = self.get_ID()
         return all(id in my_IDs for id in ids)
     
-    def find_ID(self, id: pd.Index|pd.Series|str|list[str]|pd.arrays.IntegerArray, verbose: int = 0, original_ID: str|None = None) -> str|list[str]:
+    def find_ID(self, id: pd.Index|pd.Series|str|list[str]|pd.arrays.IntegerArray, verbose: int = 0, original_ID: str|None = None, patient_type: str|None = None) -> str|list[str]:
         if isinstance(id, (list, pd.Series, pd.Index, pd.arrays.IntegerArray)):
             id_elements = unique_list(list(id))
             assert not isinstance(id_elements[0], (list,tuple)), f'Original ID to find: {id}'
@@ -67,7 +68,7 @@ class Patients_Catalog:
             failed_id = []
             for id_element in id_elements:
                 try:
-                    mapping[id_element] = self.find_ID(id_element, verbose=verbose, original_ID=None)
+                    mapping[id_element] = self.find_ID(id_element, verbose=verbose, original_ID=None, patient_type=patient_type)
                 except ValueError as e:
                     failed_id.append(id_element)
             if failed_id:
@@ -83,6 +84,8 @@ class Patients_Catalog:
                         f'{len(failed_id)} data ID: {failed_id}\n'+\
                         f'All possible candidates are: {self.get_ID()}'
                 raise ValueError(str_error)
+            if verbose>1:
+                print(f'{mapping=}')
             return [mapping[id_element] for id_element in id]
         
         original_type = type(id)
@@ -91,19 +94,28 @@ class Patients_Catalog:
             str_id = f'{id=}'
         else:
             str_id = f'{original_ID=} --> {id=}'
-        if id in Patients_Catalog.df.index:
-            str_warn = f'  Zero age!' if self.get_Age(id=id) < 1e-6 else ''
-            if verbose or str_warn:
-                if original_ID and original_ID != id:
-                    str_verbose = 'Patients_Catalog: match '
-                else:
-                    str_verbose = 'Patients_Catalog: extact match '
-                str_out = str_verbose + str_id + str_warn
-                if verbose:
-                    print(str_out)
-                else:
-                    warnings.warn(str_out)
-            return id
+
+        if len(id) > 2 and id[-1].isdigit() and id[-2].isdigit() and int(id[-2:]) > 0:
+            ids_trim_passage = [id[:len(id)-trim] for trim in range(0,3)]
+        else:
+            ids_trim_passage = [id]
+        if verbose > 1:
+            print(f'{ids_trim_passage=}')
+        for id_2_check in ids_trim_passage:
+            if id_2_check in Patients_Catalog.df.index:
+                zero_age = self.get_Age(id=id_2_check) < 1e-6
+                if verbose or zero_age:
+                    if original_ID and original_ID != id_2_check:
+                        str_out = f'Patients_Catalog: match {str_id} --> catalog_id={id_2_check}'
+                    else:
+                        str_out = 'Patients_Catalog: extact match ' + str_id
+                    if zero_age:
+                        str_out += '  Zero age!'
+                    if verbose:
+                        print(str_out)
+                    else:
+                        warnings.warn(str_out)
+                return id_2_check
                 
         def count_leading_letters(s):
             count = 0
@@ -114,49 +126,38 @@ class Patients_Catalog:
                     break
             return count
         
-        if len(id) > 2 and id[-1].isdigit() and id[-2].isdigit() and int(id[-2:]) > 0:
-            digits_to_trim = 2
+        all_catalog_ids = Patients_Catalog.df.index.tolist()        
+        if patient_type:
+            all_catalog_ids = [(catalog_id,catalog_id) for catalog_id,cell_type in zip(all_catalog_ids,Patients_Catalog.df['Cell_Type']) if patient_type in cell_type]
         else:
-            digits_to_trim = 0
-        for trim in range(0,digits_to_trim+1):
-            id_2_check = id[:len(id)-trim]
-            if verbose > 1:
-                print(f'{digits_to_trim=}  --> {id_2_check=}')
-
+            all_catalog_ids = list(zip(all_catalog_ids,all_catalog_ids))
+        all_catalog_ids_add_zero = []
+        all_catalog_ids_minus_zero = []
+        for (catalog_id,_) in all_catalog_ids:
+            num_letters = count_leading_letters(catalog_id)
+            if num_letters < len(catalog_id):
+                all_catalog_ids_add_zero.append((catalog_id[:num_letters] + '0' + catalog_id[num_letters:],catalog_id))
+                if catalog_id[num_letters] == '0':
+                    all_catalog_ids_minus_zero.append((catalog_id[:num_letters] + catalog_id[num_letters+1:],catalog_id))
+        all_catalog_ids += all_catalog_ids_add_zero + all_catalog_ids_minus_zero
+        for id_2_check in ids_trim_passage:
             # first check if "id" is inside any of the original catalog_id
-            for catalog_id in Patients_Catalog.df.index:
+            for modified_catalog_id,original_catalog_id in all_catalog_ids:
+                if original_catalog_id == modified_catalog_id:
+                    str_catalog_id = f'catalog_id={original_catalog_id}'
+                else:
+                    str_catalog_id = f'{modified_catalog_id=} --> {original_catalog_id=}'
                 if verbose > 1:
-                    print(f'Check if {str_id} --> {id_2_check=} in {catalog_id=}')
-                if id_2_check in catalog_id:
-                    str_warn = '  Zero age!' if self.get_Age(id=catalog_id) < 1e-6 else ''
+                    print(f'Check if {str_id} --> {id_2_check=} in {str_catalog_id}')
+                if modified_catalog_id.endswith(id_2_check):
+                    str_warn = '  Zero age!' if self.get_Age(id=original_catalog_id) < 1e-6 else ''
                     if verbose or str_warn:
-                        str_out = f'Patients_Catalog: match {str_id} --> {id_2_check=} --> {catalog_id}' + str_warn
+                        str_out = f'Patients_Catalog: match {str_id} --> {id_2_check=} --> {str_catalog_id}' + str_warn
                         if verbose:
                             print(str_out)
                         else:
                             warnings.warn(str_out)
-                    return catalog_id
-            # only later!!! check if "id" is inside any of modifications of catalog_id
-            for catalog_id in Patients_Catalog.df.index:
-                if verbose > 1:
-                    print(f'Check if {str_id} --> {id_2_check=} in {catalog_id=}')
-                catalog_id_list = []
-                num_letters = count_leading_letters(catalog_id)
-                if num_letters:
-                    catalog_id_list.append(catalog_id[:num_letters] + '0' + catalog_id[num_letters:])
-                    if catalog_id[num_letters] == '0':
-                        catalog_id_list.append(catalog_id[:num_letters] + catalog_id[num_letters+1:])
-                for catalog_id_2_check in catalog_id_list:
-                    if id_2_check in catalog_id_2_check:
-                        str_warn = f'  Zero age!' if self.get_Age(id=catalog_id) < 1e-6 else ''
-                        if verbose or str_warn:
-                            assert id != catalog_id
-                            str_out = f'Patients_Catalog: match {str_id} --> {id_2_check=} --> {catalog_id_2_check=} --> {catalog_id}' + str_warn
-                            if verbose:
-                                print(str_out)
-                            else:
-                                warnings.warn(str_out)
-                        return catalog_id
+                    return original_catalog_id
             
         raise ValueError(f'Could not find Patient_ID for type={original_type} {id}')
         
