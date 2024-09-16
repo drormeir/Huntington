@@ -2,6 +2,7 @@ import os
 import pandas as pd
 from python.csv_pd import pd_display, csv_raw_data, csv_header_body_2_dataframe, unique_list
 import warnings
+from typing import Union
 
 class Patients_Catalog:
     df = None
@@ -23,8 +24,8 @@ class Patients_Catalog:
         return list(Patients_Catalog.df.index)
 
     def get_CAP(self, id: str) -> float:
-        disease_status = Patients_Catalog.df.loc[id, 'Disease_Status'].upper()
-        if disease_status == 'HC':
+        disease_status = Patients_Catalog.df.loc[id, 'Disease_Status']
+        if disease_status == 'Healthy':
             return 0.0
         if disease_status == 'HGPS':
             return 999.0
@@ -127,6 +128,7 @@ class Patients_Catalog:
             return count
         
         if disease_status:
+            assert disease_status in ['Healthy', 'HGPS', 'HD_Premanifest', 'HD_Mild', 'HD_Severe']
             mask = [disease_status in status for status in Patients_Catalog.df['Disease_Status']]
             mask = pd.Series(mask, index=Patients_Catalog.df.index)
             all_catalog_ids = Patients_Catalog.df.index[mask]
@@ -161,5 +163,17 @@ class Patients_Catalog:
             
         raise ValueError(f'Could not find Patient_ID for type={original_type} {id}')
         
+    def is_not_HGPS(self, patient_ids: list[str]|pd.Series) -> Union[list[bool], pd.Series]:
+        ret = [Patients_Catalog.df.loc[id, 'Disease_Status'] != 'HGPS' and Patients_Catalog.df.loc[id, 'Age'] >= 18.0 for id in patient_ids]
+        if isinstance(patient_ids, list):
+            return ret
+        return pd.Series(data=ret, index=patient_ids.index)
+    
+    def is_healthy(self, patient_ids: list[str]|pd.Series) -> Union[list[bool], pd.Series]:
+        ret = [Patients_Catalog.df.loc[id, 'Disease_Status'] == 'Healthy' for id in patient_ids]
+        if isinstance(patient_ids, list):
+            return ret
+        return pd.Series(data=ret, index=patient_ids.index)
+    
     def display(self) -> None:
         pd_display(Patients_Catalog.df)
