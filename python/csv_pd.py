@@ -22,7 +22,9 @@ def pd_display(df: pd.DataFrame):
 
 
 
-def csv_raw_data(file_name: str, verbose: bool = True) -> list[list[str]]:
+def csv_raw_data(file_name: str, verbose: int = 1) -> list[list[str]]:
+    if verbose < 0:
+        verbose = 0
     rows = []
     try:
         # The encoding parameter is to make sure that the data is without BOM characters
@@ -80,6 +82,8 @@ def is_type_str_int_float(x):
     return np.float32
 
 def convert_non_string_columns(df: pd.DataFrame, verbose: int = 0) -> Tuple[list[str], list[str], list[str]]:
+    if verbose < 0:
+        verbose = 0
     int_columns, float_columns, string_columns = [], [], []
     
     for col in df.columns:
@@ -104,13 +108,18 @@ def convert_non_string_columns(df: pd.DataFrame, verbose: int = 0) -> Tuple[list
             target_list = float_columns
         else:
             single_type = None
-        target_list.append(col)
 
         if single_type in [pd.Int32Dtype(), np.float32]:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", category=RuntimeWarning)
                 df[col] = pd.to_numeric(df[col].astype(str), errors='coerce').astype(single_type)
-                
+        if df[col].nunique() == 1:
+            if verbose:
+                print(f'Dropping single value column: {col}')
+            del df[col]
+        else:
+            target_list.append(col)
+        
 
     if verbose:
         print(f'{len(int_columns)} Integers columns: {int_columns}')
@@ -124,6 +133,8 @@ def csv_header_body_2_dataframe(header: list[str], body: list[list[str]],\
                                 replace_header_value: list = [(' - ','_'), ('- ','_'), (' ','_')],\
                                 verbose: int = 1,\
                                 file_name: str = '') -> pd.DataFrame:
+    if verbose < 0:
+        verbose = 0
     if len(set(header)) < len(header):
         # remove duplicate columns by header name only
         ind_unique = []
