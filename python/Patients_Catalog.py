@@ -12,10 +12,12 @@ class Patients_Catalog:
             return
         if file_name is None:
             file_name=os.path.join('python','resources', 'Patients_Catalog.csv')
+        if verbose < 0:
+            verbose = 0
         if verbose or class_print_read_data:
             print(f'Reading Patients Catalog from: {file_name=}', flush=True)
-        csv_data = csv_raw_data(file_name, verbose=verbose>1)
-        Patients_Catalog.df = csv_header_body_2_dataframe(csv_data[0], csv_data[1:], verbose=verbose>1).set_index('Patient_ID')
+        csv_data = csv_raw_data(file_name, verbose=verbose-1)
+        Patients_Catalog.df = csv_header_body_2_dataframe(csv_data[0], csv_data[1:], verbose=verbose-1).set_index('Patient_ID')
         if verbose:
             print(f'Patients_Catalog CSV body length: {len(csv_data)-1} rows')
             self.display()
@@ -35,6 +37,8 @@ class Patients_Catalog:
         return Patients_Catalog.df.loc[id, 'Age']
 
     def find_typo_ID(self, id_options: list[str], verbose: int = 0, original_ID: str|None = None, disease_status: str|None = None) -> str|None:
+        if verbose < 0:
+            verbose = 0
         assert id_options
         id_options = unique_list(id_options)
         if len(id_options) < 2:
@@ -62,6 +66,8 @@ class Patients_Catalog:
         return all(id in my_IDs for id in ids)
     
     def find_ID(self, id: pd.Index|pd.Series|str|list[str]|pd.arrays.IntegerArray, verbose: int = 0, original_ID: str|None = None, disease_status: str|None = None) -> str|list[str]:
+        if verbose < 0:
+            verbose = 0
         if isinstance(id, (list, pd.Series, pd.Index, pd.arrays.IntegerArray)):
             id_elements = unique_list(list(id))
             assert not isinstance(id_elements[0], (list,tuple)), f'Original ID to find: {id}'
