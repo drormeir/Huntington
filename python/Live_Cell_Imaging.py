@@ -2,7 +2,8 @@ import os
 import pandas as pd
 from python.csv_pd import pd_display, csv_raw_data, csv_header_body_2_dataframe
 from python.Patients_Catalog import Patients_Catalog
-from python.feature_engineering import simple_feature_enginearing, evaluate_features_by_xgboost
+from python.feature_engineering import simple_feature_enginearing, complex_evaluate_features_by_wells_classifiction_using_xgboost
+from python.feature_engineering import complex_evaluate_features_by_patients_classifiction_using_xgboost
 
 class Live_Cell_Imaging:
     def __init__(self, file_name: str|None = None, verbose: int = 0, class_print_read_data: bool = False) -> None:
@@ -12,7 +13,8 @@ class Live_Cell_Imaging:
             print(f'Reading Live_Cell_Imaging from {file_name=}')
         csv_data = csv_raw_data(file_name, verbose=max(0,verbose-2))
         df = csv_header_body_2_dataframe(csv_data[0], csv_data[1:], verbose=max(0,verbose-2), file_name=file_name)
-        df = df.drop(columns=['Cell_Type', 'Severity', 'PC', 'Cell_Type_PC', 'Severity_PC', 'Experiment', 'plate', 'well'])
+        df = df.drop(columns=['Cell_Type', 'Severity', 'PC', 'Cell_Type_PC', 'Severity_PC', 'Experiment', 'plate',\
+                              'well'], errors='ignore')
         patient_ID = df.pop('ID')
         self.features_columns = list(df.columns)
         patients_catalog = Patients_Catalog(verbose=max(0,verbose-2))
@@ -41,7 +43,7 @@ class Live_Cell_Imaging:
         df = self.df
         df_no_HGPS = df[Patients_Catalog().is_not_HGPS(df['Patient_ID'])]
         is_healthy = Patients_Catalog().is_healthy(df_no_HGPS.pop('Patient_ID'))
-        selected_features, score = evaluate_features_by_xgboost(\
+        selected_features, score = complex_evaluate_features_by_wells_classifiction_using_xgboost(\
             df=df_no_HGPS, feature_columns=self.features_columns, y_true_binary=is_healthy,\
             cv_monte_carlo=cv_monte_carlo, verbose=max(0,verbose-1))
         self.selected_features_xgboost_classify_HD_without_HGPS = selected_features
@@ -51,4 +53,17 @@ class Live_Cell_Imaging:
             for ind, feature_name in enumerate(selected_features):
                 print(f'Feature[{ind+1:2d}] = {feature_name}')
 
-            
+    def evaluate_features_by_xgboost_to_classify_patients_HD_without_HGPS(self, verbose: int = 1) -> None:
+        df = self.df
+        df_no_HGPS = df[Patients_Catalog().is_not_HGPS(df['Patient_ID'])]
+        patients_ids = df_no_HGPS.pop('Patient_ID')
+        is_healthy = Patients_Catalog().is_healthy(patients_ids)
+        selected_features, score = complex_evaluate_features_by_patients_classifiction_using_xgboost(\
+            df=df_no_HGPS, feature_columns=self.features_columns, y_true_binary=is_healthy,\
+            patients_ids=patients_ids, verbose=max(0,verbose-1))
+        self.selected_features_xgboost_classify_HD_without_HGPS = selected_features
+        self.score_xgboost_classify_HD_without_HGPS = score
+        if verbose:
+            print(f'Selected model has {len(selected_features)} features with final accuracy: {score:6.2f}%')
+            for ind, feature_name in enumerate(selected_features):
+                print(f'Feature[{ind+1:2d}] = {feature_name}')

@@ -2,14 +2,17 @@ from typing import Tuple
 from tqdm import tqdm
 import pandas as pd
 import numpy as np
+import random
 import matplotlib.pyplot as plt
 from xgboost import XGBClassifier
-from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import PolynomialFeatures
 import sklearn.metrics
+from sklearn.model_selection import ParameterSampler, train_test_split
 
 def simple_feature_enginearing(df: pd.DataFrame, feature_columns: list[str], y_true_binary,\
                                engineer: bool = False, poly_deg: int = 1, verbose: int = 1) -> Tuple[pd.DataFrame,pd.DataFrame]:
+    if verbose < 0:
+        verbose = 0    
     df = df[feature_columns]
     if engineer:
         temp_df = {}
@@ -92,10 +95,12 @@ def simple_feature_enginearing(df: pd.DataFrame, feature_columns: list[str], y_t
     return features_scores, df
 
 
-def evaluate_features_by_xgboost(df, feature_columns, y_true_binary,\
+def simple_evaluate_features_by_wells_classifiction_using_xgboost(df, feature_columns, y_true_binary,\
                                  verbose: int = 1, test_size: float = 0.2, cv_monte_carlo: int = 5) -> Tuple[list[str], float]:
+    if verbose < 0:
+        verbose = 0    
     initial_features_scores, df = simple_feature_enginearing(df=df, feature_columns=feature_columns,y_true_binary=y_true_binary,\
-                                                     engineer=False,poly_deg=1,verbose=max(0,verbose-1))
+                                                     engineer=False,poly_deg=1,verbose=verbose-1)
     initial_features_scores = initial_features_scores.sort_values(by='Max F1-score', ascending=False)
     ordered_features = initial_features_scores['Features'].tolist()
     if verbose:
@@ -130,3 +135,155 @@ def evaluate_features_by_xgboost(df, feature_columns, y_true_binary,\
         plt.legend()
         plt.show()
     return selected_features, final_score
+
+
+def complex_evaluate_features_by_wells_classifiction_using_xgboost(\
+        df, feature_columns, y_true_binary,\
+        verbose: int = 1, test_size: float = 0.2, cv_monte_carlo: int = 5) -> Tuple[list[str], float]:
+    if verbose < 0:
+        verbose = 0
+    df = df[feature_columns]
+    if verbose:
+        print(f'Evaluating features using XGBoost')
+    feature_2_ind_column = {feature:ind for ind,feature in enumerate(feature_columns)}
+    num_features = len(feature_columns)
+    
+    # Define the hyperparameter grid
+    param_grid = {
+        'max_depth': [3, 5, 7],
+        'learning_rate': [0.01, 0.1, 0.2],
+        'n_estimators': [100, 200],
+        'subsample': [0.7, 0.8, 0.9],
+        'colsample_bytree': [0.7, 0.8, 0.9],
+        'gamma': [0, 1, 5],
+        'min_child_weight': [1, 5, 10],
+        'reg_alpha': [0, 0.1, 0.5],
+        'reg_lambda': [1, 1.5, 2]
+    }
+
+    random.seed(42)
+    np.random.seed(42)
+    param_combinations = list(ParameterSampler(param_grid, n_iter=100, random_state=42))
+    best_model_score = -np.inf
+    best_ind_param = -1
+    ordered_features = []
+    for ind_params, params in tqdm(list(enumerate(param_combinations)), disable=verbose<1):
+        total_features_ranks = np.zeros(shape=num_features, dtype=np.int32)
+        feature_in_use = total_features_ranks.copy()
+        model_scores = []
+        for ind_monte_carlo in range(cv_monte_carlo):
+            # Split the dataset using stratified split to maintain class balance
+            X_train, X_val, y_train, y_val = train_test_split(df, y_true_binary, test_size=test_size,\
+                                                            random_state=ind_monte_carlo, stratify=y_true_binary)
+            xgb_model = XGBClassifier(random_state=ind_monte_carlo, **params)
+            xgb_model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
+
+            y_pred = xgb_model.predict(X_val)
+            model_score = max(sklearn.metrics.f1_score(y_true=y_val, y_pred=y_pred),
+                              sklearn.metrics.f1_score(y_true=~y_val, y_pred=y_pred))
+            model_scores.append(model_score)
+            # calculates features ranks, works always, even if model do not use all possible features
+            features_importance = xgb_model.get_booster().get_score(importance_type='gain')
+            features_importance = sorted(features_importance.items(), key=lambda x: x[1], reverse=True)
+            for rank, (feature,gain) in enumerate(features_importance):
+                ind_column = feature_2_ind_column[feature]
+                total_features_ranks[ind_column] += rank
+                feature_in_use[ind_column] += 1
+        model_score = np.median(model_scores)
+        if model_score > best_model_score:
+            best_ind_param = ind_params
+            best_model_score = model_score
+            ordered_features = [feature_columns[ind_feature] for ind_feature in np.argsort(total_features_ranks) if feature_in_use[ind_feature] == cv_monte_carlo]
+    if verbose:
+        print(f'The best XGBoost model has parameters: {param_combinations[best_ind_param]}')
+        print(f'Model F1 score: {best_model_score}')
+        print('Ordered features in descending order:')
+        for i_feature, feature in enumerate(ordered_features):
+            print(f'Feature[{i_feature+1}] = {feature}')
+    return ordered_features, best_model_score
+
+def complex_evaluate_features_by_patients_classifiction_using_xgboost(\
+        df, feature_columns, y_true_binary, patients_ids,\
+        num_combinations: int = 10, verbose: int = 1) -> Tuple[list[str], float]:
+    if verbose < 0:
+        verbose = 0
+    df = df[feature_columns]
+    feature_2_ind_column = {feature:ind for ind,feature in enumerate(feature_columns)}
+    num_features = len(feature_columns)
+    
+    # Define the hyperparameter grid
+    param_grid = {
+        'max_depth': [3, 5, 7],
+        'learning_rate': [0.01, 0.1, 0.2],
+        'n_estimators': [100, 200],
+        'subsample': [0.7, 0.8, 0.9],
+        'colsample_bytree': [0.7, 0.8, 0.9],
+        'gamma': [0, 1, 5],
+        'min_child_weight': [1, 5, 10],
+        'reg_alpha': [0, 0.1, 0.5],
+        'reg_lambda': [1, 1.5, 2]
+    }
+    random_state = 42
+    random.seed(random_state)
+    np.random.seed(random_state)
+    param_combinations = list(ParameterSampler(param_grid, n_iter=num_combinations, random_state=random_state))
+    if isinstance(patients_ids, pd.Series):
+        patients_ids = patients_ids.to_numpy()
+    unique_patient_ids = np.unique(patients_ids)
+    num_patient_ids = unique_patient_ids.size
+    xgb_random_state = 0
+    total_features_ranks = np.zeros(shape=num_features, dtype=np.int32)
+    feature_in_use = total_features_ranks.copy()
+    test_scores = []
+    with tqdm(total=num_patient_ids * (num_combinations*(num_patient_ids-1)+1), disable=verbose<1,\
+              desc='Evaluating features using XGBoost') as pbar:
+        for patient_id_test in unique_patient_ids:
+            is_testing_rows = patients_ids == patient_id_test
+            is_non_testing_rows = ~is_testing_rows
+            best_validation_params = None
+            best_validation_score = -np.inf
+            for params in param_combinations:
+                validation_scores = []
+                for patient_id_validation in unique_patient_ids:
+                    if patient_id_validation == patient_id_test:
+                        continue
+                    is_training_rows = is_non_testing_rows & (patients_ids != patient_id_validation)
+                    is_validation_rows = is_non_testing_rows & (patients_ids == patient_id_validation)
+                    X_train = df.iloc[is_training_rows]
+                    y_train = y_true_binary[is_training_rows]
+                    X_val = df.iloc[is_validation_rows]
+                    y_val = y_true_binary[is_validation_rows]
+                    xgb_model = XGBClassifier(random_state=xgb_random_state, **params)
+                    xgb_model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)        
+                    y_pred = xgb_model.predict(X_val)
+                    validation_score = sum(y_pred == y_val)/y_val.size*100 # accuracy for single 
+                    validation_scores.append(validation_score)
+                    pbar.update(1)
+                validation_score = np.median(validation_scores)
+                if validation_score > best_validation_score:
+                    best_validation_score = validation_score
+                    best_validation_params = params
+                pass # next params to check
+            # at this point we have the best params for the validation
+            # we will execute a final model to predict the test set
+            X_train = df.iloc[is_non_testing_rows]
+            y_train = y_true_binary[is_non_testing_rows]
+            X_test = df.iloc[is_testing_rows]
+            y_test = y_true_binary[is_testing_rows]
+            xgb_model = XGBClassifier(random_state=xgb_random_state, **best_validation_params)
+            xgb_model.fit(X_train, y_train, eval_set=[(X_test, y_test)], verbose=False)
+            y_pred = xgb_model.predict(X_test)
+            test_score = sum(y_pred == y_test)/y_test.size*100 # accuracy for single 
+            test_scores.append(test_score)
+            # calculates features ranks, works always, even if model do not use all possible features
+            features_importance = xgb_model.get_booster().get_score(importance_type='gain')
+            features_importance = sorted(features_importance.items(), key=lambda x: x[1], reverse=True)
+            for rank, (feature,gain) in enumerate(features_importance):
+                ind_column = feature_2_ind_column[feature]
+                total_features_ranks[ind_column] += rank
+                feature_in_use[ind_column] += 1
+            pbar.update(1)
+    total_features_ranks += num_features*(num_patient_ids-feature_in_use)
+    ordered_features = [feature_columns[ind_feature] for ind_feature in np.argsort(total_features_ranks)]
+    test_score = np.median(test_scores)
+    return ordered_features, test_score
